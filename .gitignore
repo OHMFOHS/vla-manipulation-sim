@@ -1,0 +1,29 @@
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets
+.env
+*.key
+
+# Large / generated artefacts (regenerate with the scripts)
+outputs/*
+!outputs/.gitkeep
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.hdf5
+*.mp4
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

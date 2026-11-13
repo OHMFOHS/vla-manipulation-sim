@@ -1,0 +1,43 @@
+# Simulation, controller and recovery settings (validated by robotics.common.config.SimulationConfig)
+env:
+  scene: color_sort            # robosuite PickPlace with colour-coded primitive objects
+  control_freq: 20             # Hz, OSC_POSE control rate
+  perception_camera: overhead  # calibrated RGB-D camera above both bins
+  render_camera: frontview     # camera used for GIFs / GUI
+  camera_height: 320
+  camera_width: 320
+  overhead_camera_pos: [0.1, 0.015, 2.0]
+  overhead_camera_fovy: 52.0
+  initialization_noise: 0.02   # robot joint noise at reset (rad, gaussian)
+  object_friction: [1.0, 0.005, 0.0001]
+  object_density: 500.0
+  hard_reset: false
+
+controller:
+  max_speed: 0.45              # m/s peak Cartesian speed of min-jerk segments
+  max_delta_pos: 0.05          # m per control step (robosuite OSC output limit)
+  max_delta_rot: 0.5           # rad per control step
+  position_gain: 1.6
+  rotation_gain: 1.0
+  action_clip: 1.0
+  position_tolerance: 0.012
+  pregrasp_height: 0.10
+  grasp_depth: 0.025
+  lift_height: 1.04
+  place_release_height: 0.035
+  gripper_close_steps: 14
+  gripper_open_steps: 10
+  segment_timeout_steps: 120   # per motion segment
+  settle_steps: 6
+  grasp_min_width: 0.012
+  grasp_max_width: 0.068
+
+recovery:
+  max_recovery_attempts: 2     # retries per task step after the first attempt
+  episode_step_budget: 3000    # hard episode timeout (control steps = 150 s sim time)
+
+faults:                        # fault injection (off for the main benchmark)
+  enabled: false
+  slip_probability: 0.0
+  grasp_offset_probability: 0.0
+  grasp_offset_m: 0.04
