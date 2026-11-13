@@ -53,6 +53,16 @@ def _make_primitive(spec, name: str, visual: bool, friction, density):
     return cls(**kwargs)
 
 
+def _look_at_xyaxes(eye, target, up=(0.0, 0.0, 1.0)) -> str:
+    """MuJoCo ``xyaxes`` string for a camera at ``eye`` looking at ``target``."""
+    f = np.asarray(target, float) - np.asarray(eye, float)
+    f /= np.linalg.norm(f)
+    right = np.cross(f, up)
+    right /= np.linalg.norm(right)
+    cam_up = np.cross(right, f)
+    return " ".join(f"{v:.5f}" for v in (*right, *cam_up))
+
+
 class ColorSortPickPlace(PickPlace):
     """robosuite PickPlace with colour-coded primitive objects and an overhead RGB-D camera."""
 
@@ -95,6 +105,17 @@ class ColorSortPickPlace(PickPlace):
                 pos=" ".join(str(v) for v in self._overhead_pos),
                 quat="1 0 0 0",
                 fovy=str(self._overhead_fovy),
+            )
+        )
+        # Angled presentation camera for demo videos (not used by perception).
+        self.model.worldbody.append(
+            new_element(
+                tag="camera",
+                name="showcase",
+                mode="fixed",
+                pos="1.05 -0.65 1.55",
+                xyaxes=_look_at_xyaxes((1.05, -0.65, 1.55), (0.02, 0.02, 0.86)),
+                fovy="45",
             )
         )
 
@@ -161,16 +182,20 @@ class SimEnv:
             )
             if gui_backend == "opencv":
                 logger.warning(
-                    "macOS without mjpython: showing the simulation in an OpenCV window. "
-                    "For the interactive MuJoCo viewer run: uv run mjpython scripts/run_demo.py --gui"
+                    "macOS: showing the simulation in an OpenCV window. For the interactive "
+                    "MuJoCo viewer (oracle perception only) see docs/TROUBLESHOOTING.md"
                 )
         self.gui_backend = gui_backend if gui else None
         use_mjviewer = self.gui_backend == "mjviewer"
+        # On macOS robosuite's offscreen renderer opens a (hidden) GLFW window, which Cocoa only
+        # allows on the main thread - but mjpython runs Python off the main thread.  The native
+        # viewer therefore runs without offscreen rendering (no camera images => oracle only).
+        self.offscreen_available = not (sys.platform == "darwin" and use_mjviewer)
         cfg = self.config
         self.env = ColorSortPickPlace(
             robots="Panda",
             has_renderer=use_mjviewer,
-            has_offscreen_renderer=True,
+            has_offscreen_renderer=self.offscreen_available,
             render_camera=cfg.render_camera,
             use_camera_obs=False,  # images are rendered on demand by capture_rgbd()
             use_object_obs=True,
@@ -218,6 +243,12 @@ class SimEnv:
             raise ValueError(f"Expected action of shape ({self.action_dim},), got {action.shape}")
         self._obs, _, _, _ = self.env.step(np.clip(action, -1.0, 1.0))
         self.step_count += 1
+        if self.gui_backend is not None:
+            # Pace GUI runs to real time so the motion is watchable.
+            target = self._wall_start + self.step_count * self.control_dt
+            delay = target - time.perf_counter()
+            if delay > 0:
+                time.sleep(delay)
         if self.gui_backend == "mjviewer":
             self.env.render()
         elif self.gui_backend == "opencv" and self.step_count % 2 == 0:
@@ -291,6 +322,7 @@ class SimEnv:
         h = height or self.config.camera_height
         w = width or self.config.camera_width
         sim = self.env.sim
+        self._require_offscreen()
         self._make_render_context_current()
         rgb, depth = sim.render(width=w, height=h, camera_name=camera, depth=True)
         rgb = np.ascontiguousarray(rgb[::-1])  # OpenGL origin is bottom-left
@@ -312,6 +344,13 @@ class SimEnv:
             timestamp=self.sim_time,
         )
 
+    def _require_offscreen(self) -> None:
+        if not self.offscreen_available:
+            raise RuntimeError(
+                "Camera rendering is unavailable with the native MuJoCo viewer on macOS. "
+                "Use --perception oracle with mjpython, or run without mjpython (OpenCV viewer)."
+            )
+
     def _make_render_context_current(self) -> None:
         """robosuite only makes its offscreen GL context current when it is created.  With
         several environments in one process (benchmarks, tests) another env's context may be
@@ -323,6 +362,7 @@ class SimEnv:
     def render_rgb(
         self, camera: str | None = None, height: int = 360, width: int = 480
     ) -> np.ndarray:
+        self._require_offscreen()
         self._make_render_context_current()
         rgb = self.env.sim.render(
             width=width, height=height, camera_name=camera or self.config.render_camera

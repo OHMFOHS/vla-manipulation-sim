@@ -1,0 +1,15 @@
+# Behaviour cloning settings (robotics.common.config.TrainingConfig)
+seed: 0
+hidden_sizes: [256, 256, 256]
+dropout: 0.0
+learning_rate: 0.001
+weight_decay: 0.00001
+batch_size: 512
+epochs: 60
+val_fraction: 0.15             # held-out *episodes* (no frame-level leakage)
+gripper_loss_weight: 1.0
+device: cpu
+demo_path: outputs/data/demos.npz
+checkpoint_dir: outputs/checkpoints
+collect_noise_std: 0.15        # DART-style noise on executed actions (labels stay clean)
+collect_noise_fraction: 0.5    # fraction of demo episodes with noise

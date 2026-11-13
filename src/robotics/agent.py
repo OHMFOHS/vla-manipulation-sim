@@ -58,6 +58,11 @@ class ManipulationAgent:
         self.cfg = sim_config or default_simulation_config()
         self.pcfg = perception_config or default_perception_config()
         self.env = env or SimEnv(self.cfg.env, gui=self.opts.gui)
+        if self.opts.perception == "vision" and not self.env.offscreen_available:
+            raise ValueError(
+                "Vision mode needs camera rendering, which the native macOS viewer (mjpython) "
+                "disables. Use --perception oracle, or drop mjpython to get the OpenCV viewer."
+            )
         self._bc_policy = None
         if self.opts.controller == "bc":
             from robotics.learning.policy import load_policy
