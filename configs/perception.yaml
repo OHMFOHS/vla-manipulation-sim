@@ -1,0 +1,13 @@
+# RGB-D perception settings (robotics.common.config.PerceptionConfig)
+min_pixels: 25                 # smallest connected component accepted as an object
+min_valid_depth: 0.1           # m
+max_valid_depth: 3.0           # m
+min_height_above_floor: 0.015  # m, rejects the bin floor and flat container markers
+morph_kernel: 3
+top_surface_percentile: 90.0
+occlusion_visible_ratio: 0.35  # visible top-face fraction below which a detection is flagged
+classes:                       # OpenCV HSV ranges: H in [0,180), S,V in [0,255]
+  - {name: milk,   hsv_low: [98, 110, 140], hsv_high: [125, 255, 255]}
+  - {name: bread,  hsv_low: [22, 120, 150], hsv_high: [38, 255, 255]}
+  - {name: cereal, hsv_low: [0, 110, 150],  hsv_high: [7, 255, 255], hsv_low2: [172, 110, 150], hsv_high2: [180, 255, 255]}
+  - {name: can,    hsv_low: [55, 110, 120], hsv_high: [80, 255, 255]}
