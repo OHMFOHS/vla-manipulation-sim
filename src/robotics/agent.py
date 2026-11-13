@@ -71,6 +71,7 @@ class ManipulationAgent:
                 raise ValueError("controller='bc' requires a checkpoint path")
             self._bc_policy = load_policy(self.opts.checkpoint)
         self.last_frames: list = []
+        self.last_captions: list[str] = []
         self.last_collisions: CollisionCounter | None = None
 
     def make_perception(self):
@@ -126,6 +127,7 @@ class ManipulationAgent:
             "collision_pairs": sorted({f"{a}|{b}" for a, b in collisions.pairs})[:20],
         }
         self.last_frames = recorder.frames if recorder else []
+        self.last_captions = recorder.captions if recorder else []
         self.last_collisions = collisions
         return report
 

@@ -19,6 +19,56 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def annotate_frames(frames, phases, instruction: str, width: int = 400):
+    """Downscale frames and overlay the instruction and the current skill phase."""
+    import cv2
+
+    out = []
+    for img, phase in zip(frames, phases, strict=False):
+        h = int(img.shape[0] * width / img.shape[1])
+        im = cv2.resize(img, (width, h), interpolation=cv2.INTER_AREA)
+        cv2.rectangle(im, (0, 0), (width, 38), (20, 20, 20), -1)
+        cv2.putText(
+            im,
+            instruction[:58],
+            (6, 15),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            (240, 240, 240),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            im,
+            f"phase: {phase}",
+            (6, 31),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            (120, 200, 255),
+            1,
+            cv2.LINE_AA,
+        )
+        out.append(im)
+    return out
+
+
+def compress_gif(path: Path) -> None:
+    """Re-encode a GIF with an optimised palette via ffmpeg when available (~5-8x smaller)."""
+    import shutil
+    import subprocess
+
+    if shutil.which("ffmpeg") is None:
+        return
+    tmp = path.with_suffix(".tmp.gif")
+    vf = (
+        "split[s0][s1];[s0]palettegen=max_colors=96:stats_mode=diff[p];"
+        "[s1][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle"
+    )
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(path), "-vf", vf, str(tmp)]
+    if subprocess.run(cmd, check=False).returncode == 0:
+        tmp.replace(path)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -33,7 +83,10 @@ def main() -> int:
     p.add_argument(
         "--record", default=None, help="write a GIF/MP4 of the run (e.g. outputs/demo/run.gif)"
     )
-    p.add_argument("--record-camera", default="frontview")
+    p.add_argument("--record-camera", default="showcase", help="showcase | frontview | agentview")
+    p.add_argument(
+        "--record-every", type=int, default=6, help="capture a frame every N control steps"
+    )
     p.add_argument(
         "--faults", action="store_true", help="enable fault injection to exercise recovery"
     )
@@ -72,7 +125,7 @@ def main() -> int:
         planner=args.planner,
         gui=args.gui,
         record_camera=args.record_camera if args.record else None,
-        record_every=3,
+        record_every=args.record_every,
     )
     try:
         agent = ManipulationAgent(opts, sim_config=cfg)
@@ -92,11 +145,12 @@ def main() -> int:
             rec = Path(args.record)
             rec = rec if rec.is_absolute() else ROOT / rec
             rec.parent.mkdir(parents=True, exist_ok=True)
-            frames = agent.last_frames
+            frames = annotate_frames(agent.last_frames, agent.last_captions, plan.instruction)
             if rec.suffix == ".gif":
-                imageio.mimsave(rec, frames[::2], duration=0.1, loop=0)
+                imageio.mimsave(rec, frames, duration=0.1, loop=0)
+                compress_gif(rec)
             else:
-                imageio.mimsave(rec, frames, fps=20)
+                imageio.mimsave(rec, frames, fps=10)
             print(f"recording: {rec}")
     finally:
         agent.close()

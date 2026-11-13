@@ -55,6 +55,14 @@ STANDARD_CONFIGS = {
         "outputs/checkpoints/bc_policy.pt",
         description="RGB-D vision + learned BC policy",
     ),
+    "C2_vision_bc_norecovery": BenchmarkConfig(
+        "C2_vision_bc_norecovery",
+        "vision",
+        "bc",
+        "outputs/checkpoints/bc_policy.pt",
+        max_recovery_attempts=0,
+        description="Vision + learned BC policy, recovery OFF (raw policy)",
+    ),
     "D_vision_scripted_faults": BenchmarkConfig(
         "D_vision_scripted_faults",
         "vision",

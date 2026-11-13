@@ -28,7 +28,7 @@ from robotics.common.config import (
     default_simulation_config,
 )
 from robotics.control.skills import ControlHook, GraspTarget, PlaceTarget, SkillResult
-from robotics.learning.features import HeldLatch, build_features
+from robotics.learning.features import HeldLatch, VelocityEstimator, build_features
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ class DemoRecorder(ControlHook):
         self.place: PlaceTarget | None = None
         self.prev_cmd = -1.0
         self.latch: HeldLatch | None = None
+        self.vel: VelocityEstimator | None = None
         self.obs: list[np.ndarray] = []
         self.act: list[np.ndarray] = []
         self.time: list[float] = []
@@ -52,6 +53,7 @@ class DemoRecorder(ControlHook):
         self.grasp, self.place = grasp, place
         self.prev_cmd = -1.0
         self.latch = HeldLatch(self.cfg.grasp_min_width, self.cfg.grasp_max_width)
+        self.vel = None  # created lazily with the env's control period
         self.obs, self.act, self.time = [], [], []
 
     def stop(self) -> None:
@@ -60,9 +62,12 @@ class DemoRecorder(ControlHook):
     def before_step(self, env, phase, clean_action, action):
         if self.active:
             latch = self.latch.update(env.gripper_width, self.prev_cmd)
+            if self.vel is None:
+                self.vel = VelocityEstimator(env.control_dt)
             self.obs.append(
                 build_features(
                     env.eef_pos,
+                    self.vel.update(env.eef_pos),
                     env.gripper_width,
                     self.grasp.position,
                     self.grasp.top_z,

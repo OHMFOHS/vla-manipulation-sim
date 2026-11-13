@@ -11,9 +11,10 @@ import numpy as np
 
 from robotics.simulation.scene import OBJECT_NAMES
 
-FEATURE_VERSION = 1
+FEATURE_VERSION = 2
 FEATURE_NAMES = (
     ["eef_x", "eef_y", "eef_z"]
+    + ["eef_vx", "eef_vy", "eef_vz"]
     + ["grasp_dx", "grasp_dy", "grasp_dz", "grasp_top_dz"]
     + ["place_dx", "place_dy", "place_dz"]
     + ["gripper_width", "prev_gripper_cmd", "held_latch"]
@@ -47,8 +48,27 @@ class HeldLatch:
         return self.value
 
 
+class VelocityEstimator:
+    """Finite-difference end-effector velocity (m/s) from consecutive proprioceptive readings.
+
+    Velocity disambiguates "still moving toward the release height" from "arrived and
+    stalled", which is exactly where a memoryless BC policy otherwise gets stuck.
+    """
+
+    def __init__(self, dt: float):
+        self.dt = dt
+        self.prev: np.ndarray | None = None
+
+    def update(self, eef_pos: np.ndarray) -> np.ndarray:
+        eef_pos = np.asarray(eef_pos, dtype=np.float64)
+        v = np.zeros(3) if self.prev is None else (eef_pos - self.prev) / self.dt
+        self.prev = eef_pos.copy()
+        return v
+
+
 def build_features(
     eef_pos: np.ndarray,
+    eef_vel: np.ndarray,
     gripper_width: float,
     grasp_pos: np.ndarray,
     grasp_top_z: float,
@@ -62,6 +82,7 @@ def build_features(
     f = np.concatenate(
         [
             eef,
+            np.asarray(eef_vel, dtype=np.float64),
             np.asarray(grasp_pos) - eef,
             [grasp_top_z - eef[2]],
             np.asarray(place_pos) - eef,

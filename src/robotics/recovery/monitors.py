@@ -88,5 +88,5 @@ class FrameRecorder(ControlHook):
     def after_step(self, env, phase: str) -> str | None:
         if env.step_count % self.every == 0:
             self.frames.append(env.render_rgb(self.camera, *self.size))
-            self.captions.append(f"{self.caption} [{phase}]")
+            self.captions.append(phase)
         return None

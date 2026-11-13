@@ -14,6 +14,7 @@ from robotics.learning.policy import LoadedPolicy, MLPPolicy, load_policy, save_
 def test_feature_vector_layout():
     f = build_features(
         np.array([0.0, 0.0, 1.0]),
+        np.array([0.1, 0.0, -0.2]),
         0.08,
         np.array([0.1, -0.2, 0.86]),
         0.9,
@@ -23,9 +24,18 @@ def test_feature_vector_layout():
         "can",
     )
     assert f.shape == (OBS_DIM,) and f.dtype == np.float32
-    assert f[3:6] == pytest.approx([0.1, -0.2, -0.14])
-    assert f[6] == pytest.approx(-0.1)
+    assert f[3:6] == pytest.approx([0.1, 0.0, -0.2])
+    assert f[6:9] == pytest.approx([0.1, -0.2, -0.14])
+    assert f[9] == pytest.approx(-0.1)
     assert f[-4:].tolist() == [0, 0, 0, 1]
+
+
+def test_velocity_estimator():
+    from robotics.learning.features import VelocityEstimator
+
+    v = VelocityEstimator(dt=0.05)
+    assert np.allclose(v.update(np.zeros(3)), 0.0)
+    assert np.allclose(v.update(np.array([0.01, 0.0, -0.005])), [0.2, 0.0, -0.1])
 
 
 def test_held_latch_requires_consecutive_hold():

@@ -21,13 +21,14 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Validated categorical order (blue, orange, aqua, yellow, magenta) - colour follows the config.
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
+# Validated categorical order (blue, orange, aqua, yellow, magenta, green) - colour follows the config.
+SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
 INK, INK2, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 LABELS = {
     "A_oracle_scripted": "A  Oracle + scripted",
     "B_vision_scripted": "B  Vision + scripted",
     "C_vision_bc": "C  Vision + BC policy",
+    "C2_vision_bc_norecovery": "C2 BC, recovery OFF",
     "D_vision_scripted_faults": "D  Faults, recovery ON",
     "E_vision_scripted_faults_norecovery": "E  Faults, recovery OFF",
 }
@@ -77,20 +78,33 @@ def grouped_bars(
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--benchmark", default="outputs/benchmark")
+    p.add_argument(
+        "--benchmark",
+        nargs="+",
+        default=["outputs/benchmark"],
+        help="one or more evaluate.py output directories (results are merged)",
+    )
     p.add_argument("--training-log", default="outputs/checkpoints/training_log.json")
     p.add_argument("--out", default="assets/results")
     args = p.parse_args()
 
-    bdir = ROOT / args.benchmark
+    bdirs = [ROOT / b for b in args.benchmark]
     out = ROOT / args.out
     out.mkdir(parents=True, exist_ok=True)
-    summary_path = bdir / "summary.json"
-    if not summary_path.exists():
-        print(f"{summary_path} not found - run scripts/evaluate.py first")
-        return 2
-    data = json.loads(summary_path.read_text())
-    results, meta = data["results"], data["meta"]
+    results: dict = {}
+    metas: list[dict] = []
+    for bdir in bdirs:
+        summary_path = bdir / "summary.json"
+        if not summary_path.exists():
+            print(f"{summary_path} not found - run scripts/evaluate.py first")
+            return 2
+        data = json.loads(summary_path.read_text())
+        results.update(data["results"])
+        metas.append(data["meta"])
+    meta = metas[0]
+    if any(m["seeds"] != meta["seeds"] for m in metas):
+        print("warning: merged benchmark directories used different seed sets")
+    results = dict(sorted(results.items()))
     names = list(results)
     colors = {n: SERIES[i % len(SERIES)] for i, n in enumerate(LABELS) if n in names}
     for i, n in enumerate(names):
@@ -186,9 +200,11 @@ def main() -> int:
         plt.close(fig)
 
     # 4. Episode duration distribution
-    episodes_csv = bdir / "episodes.csv"
-    if episodes_csv.exists():
-        rows = list(csv.DictReader(episodes_csv.open()))
+    rows = []
+    for bdir in bdirs:
+        if (bdir / "episodes.csv").exists():
+            rows += list(csv.DictReader((bdir / "episodes.csv").open()))
+    if rows:
         fig, ax = plt.subplots(figsize=(9, 3.8), facecolor=SURFACE)
         data_by = [[float(r["sim_time_s"]) for r in rows if r["config"] == n] for n in names]
         bp = ax.boxplot(
@@ -272,8 +288,11 @@ def main() -> int:
             + " |"
         )
     lines.append("")
+    commits = ", ".join(sorted({str(m.get("git_commit")) for m in metas}))
+    v = meta["versions"]
     lines.append(
-        f"Seeds {meta['seeds'][0]}..{meta['seeds'][-1]} · commit {meta.get('git_commit')} · {meta['versions']}"
+        f"Seeds {meta['seeds'][0]}..{meta['seeds'][-1]} · commit(s) {commits} · "
+        f"robosuite {v['robosuite']}, MuJoCo {v['mujoco']}, torch {v['torch']}, Python {v['python']}"
     )
     (out / "results_table.md").write_text("\n".join(lines) + "\n")
     written.append("results_table.md")

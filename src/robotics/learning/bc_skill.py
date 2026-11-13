@@ -7,7 +7,7 @@ import numpy as np
 from robotics.common.config import ControllerConfig
 from robotics.control.osc import OSCCommander, top_down_orientation
 from robotics.control.skills import ControlHook, GraspTarget, PlaceTarget, SkillResult
-from robotics.learning.features import HeldLatch, build_features
+from robotics.learning.features import HeldLatch, VelocityEstimator, build_features
 from robotics.learning.policy import LoadedPolicy
 
 
@@ -47,6 +47,7 @@ class BCPickPlaceSkill:
         env = self.env
         target_rot = top_down_orientation(grasp.yaw)
         latch = HeldLatch(self.cfg.grasp_min_width, self.cfg.grasp_max_width)
+        vel = VelocityEstimator(env.control_dt)
         prev_cmd = -1.0
         held = False
         released = False
@@ -55,8 +56,8 @@ class BCPickPlaceSkill:
         while steps < self.timeout:
             latch_v = latch.update(env.gripper_width, prev_cmd)
             f = build_features(
-                env.eef_pos, env.gripper_width, grasp.position, grasp.top_z, place.position, prev_cmd, latch_v,
-                grasp.object_name,
+                env.eef_pos, vel.update(env.eef_pos), env.gripper_width, grasp.position, grasp.top_z,
+                place.position, prev_cmd, latch_v, grasp.object_name,
             )  # fmt: skip
             xyz, p_close = self.policy.act(f)
             cmd = 1.0 if p_close > 0.5 else -1.0
