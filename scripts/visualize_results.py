@@ -18,6 +18,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -86,6 +87,12 @@ def main() -> int:
     )
     p.add_argument("--training-log", default="outputs/checkpoints/training_log.json")
     p.add_argument("--out", default="assets/results")
+    p.add_argument(
+        "--scaling",
+        nargs="*",
+        default=[],
+        help="N=DIR pairs: raw-BC evaluation dirs for a data-scaling plot, e.g. 25=outputs/scaling/eval_25",
+    )
     args = p.parse_args()
 
     bdirs = [ROOT / b for b in args.benchmark]
@@ -104,7 +111,8 @@ def main() -> int:
     meta = metas[0]
     if any(m["seeds"] != meta["seeds"] for m in metas):
         print("warning: merged benchmark directories used different seed sets")
-    results = dict(sorted(results.items()))
+    order = [k for k in LABELS if k in results] + sorted(k for k in results if k not in LABELS)
+    results = {k: results[k] for k in order}
     names = list(results)
     colors = {n: SERIES[i % len(SERIES)] for i, n in enumerate(LABELS) if n in names}
     for i, n in enumerate(names):
@@ -114,10 +122,11 @@ def main() -> int:
     # 1. Main comparison A/B/C
     main_cfgs = [n for n in names if n[0] in "ABC"]
     if main_cfgs:
-        fig, ax = plt.subplots(figsize=(9, 4.2), facecolor=SURFACE)
+        fig, ax = plt.subplots(figsize=(10, 4.2), facecolor=SURFACE)
         metrics = [
             ("task_success_rate", "Task success"),
-            ("placement_success_rate", "Placement success"),
+            ("placement_success_rate", "Objects in target"),
+            ("skill_verified_placement_rate", "Placed by the skill itself"),
             ("pick_success_rate", "Pick success / attempt"),
         ]
         grouped_bars(
@@ -173,7 +182,7 @@ def main() -> int:
         fig, ax = plt.subplots(figsize=(7, 4.0), facecolor=SURFACE)
         metrics = [
             ("task_success_rate", "Task success"),
-            ("placement_success_rate", "Placement success"),
+            ("placement_success_rate", "Objects in target"),
         ]
         abl_colors = {n: SERIES[i] for i, n in enumerate(abl)}
         grouped_bars(
@@ -182,16 +191,19 @@ def main() -> int:
             {n: [results[n][m[0]] for m in metrics] for n in abl},
             abl_colors,
         )
-        rec = ", ".join(
-            f"{LABELS.get(n, n).split()[0]}: {results[n]['avg_recovery_attempts']:.2f}" for n in abl
-        )
-        _style(ax, f"Failure recovery under injected faults (avg recoveries/episode - {rec})")
-        ax.title.set_fontsize(10.5)
+        _style(ax, "Recovery under injected faults (same faults, same seeds)")
+        handles, _ = ax.get_legend_handles_labels()
+        labels = [
+            f"{LABELS.get(n, n)} ({results[n]['avg_recovery_attempts']:.2f} recoveries/ep)"
+            for n in abl
+        ]
         ax.legend(
+            handles,
+            labels,
             frameon=False,
             loc="upper center",
             bbox_to_anchor=(0.5, -0.1),
-            ncol=len(abl),
+            ncol=1,
             labelcolor=INK,
         )
         fig.tight_layout()
@@ -246,10 +258,54 @@ def main() -> int:
         written.append("bc_training.png")
         plt.close(fig)
 
+    # 6. Data scaling of raw BC (recovery OFF)
+    if args.scaling:
+        pts = []
+        for item in args.scaling:
+            n, d = item.split("=", 1)
+            sj = json.loads((ROOT / d / "summary.json").read_text())["results"]
+            r = next(iter(sj.values()))
+            pts.append(
+                (int(n), r["task_success_rate"], r["skill_verified_placement_rate"], r["episodes"])
+            )
+        pts.sort()
+        fig, ax = plt.subplots(figsize=(7, 3.8), facecolor=SURFACE)
+        xs = [p[0] for p in pts]
+        for k, (idx, lab) in enumerate(
+            ((1, "task success (incl. safe-stop releases)"), (2, "placed by the policy itself"))
+        ):
+            ys = [p[idx] for p in pts]
+            ax.plot(xs, ys, color=SERIES[k], lw=2, marker="o", ms=8, label=lab, zorder=3)
+            for x, y in zip(xs, ys, strict=True):
+                ax.annotate(
+                    f"{y * 100:.0f}%",
+                    (x, y),
+                    textcoords="offset points",
+                    xytext=(0, 8),
+                    ha="center",
+                    fontsize=8,
+                    color=INK,
+                )
+        ax.set_xscale("log")
+        ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+        ax.set_xticks(xs)
+        ax.set_xticklabels([str(x) for x in xs])
+        ax.set_ylim(0, 1.12)
+        ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
+        ax.set_yticklabels(["0%", "25%", "50%", "75%", "100%"])
+        _style(ax, f"Raw BC policy vs. number of demo episodes ({pts[0][3]} eval episodes each)")
+        ax.set_xlabel("demonstration episodes (x4 trajectories)", color=INK2)
+        ax.legend(frameon=False, labelcolor=INK, loc="lower right")
+        fig.tight_layout()
+        fig.savefig(out / "bc_data_scaling.png", dpi=150)
+        written.append("bc_data_scaling.png")
+        plt.close(fig)
+
     # Markdown table
     cols = [
         ("task_success_rate", "Task success", "pct"),
-        ("placement_success_rate", "Placement success", "pct"),
+        ("placement_success_rate", "Objects in target", "pct"),
+        ("skill_verified_placement_rate", "Placed by skill itself", "pct"),
         ("pick_success_rate", "Pick success / attempt", "pct"),
         ("avg_recovery_attempts", "Avg recoveries", "f2"),
         ("collision_rate", "Collision rate", "pct"),

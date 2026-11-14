@@ -176,7 +176,9 @@ def run_benchmark(
     return summaries
 
 
-def _write_outputs(out: Path, summaries, rows, configs, seeds, instruction, base_cfg) -> None:
+def _write_outputs(
+    out: Path, summaries, rows, configs, seeds, instruction, base_cfg, meta: dict | None = None
+) -> None:
     with open(out / "episodes.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
@@ -187,6 +189,7 @@ def _write_outputs(out: Path, summaries, rows, configs, seeds, instruction, base
         "robosuite_success_rate",
         "pick_success_rate",
         "placement_success_rate",
+        "skill_verified_placement_rate",
         "avg_episode_sim_time_s",
         "avg_episode_wall_time_s",
         "avg_recovery_attempts",
@@ -227,7 +230,7 @@ def _write_outputs(out: Path, summaries, rows, configs, seeds, instruction, base
                         m["first_attempt_success_rate"],
                     ]
                 )
-    meta = {
+    meta = meta or {
         "instruction": instruction,
         "seeds": seeds,
         "configs": [c.__dict__ for c in configs],
@@ -238,3 +241,24 @@ def _write_outputs(out: Path, summaries, rows, configs, seeds, instruction, base
     }
     with open(out / "summary.json", "w") as f:
         json.dump({"meta": meta, "results": summaries}, f, indent=2, default=str)
+
+
+def resummarize(out_dir: str | Path) -> dict:
+    """Recompute summary files from the per-episode JSONL logs (no simulation)."""
+    out = Path(out_dir)
+    if not out.is_absolute():
+        out = PROJECT_ROOT / out
+    old = json.loads((out / "summary.json").read_text())
+    meta = old["meta"]
+    summaries, rows, configs = {}, [], []
+    for c in meta["configs"]:
+        bc = BenchmarkConfig(**c)
+        reports = [
+            EpisodeReport.from_dict(json.loads(line))
+            for line in (out / f"episodes_{bc.name}.jsonl").read_text().splitlines()
+        ]
+        summaries[bc.name] = {**summarize(bc.name, reports), "description": bc.description}
+        rows += [episode_row(bc.name, r) for r in reports]
+        configs.append(bc)
+    _write_outputs(out, summaries, rows, configs, meta["seeds"], meta["instruction"], None, meta)
+    return summaries

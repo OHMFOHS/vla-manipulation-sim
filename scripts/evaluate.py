@@ -31,6 +31,11 @@ def main() -> int:
     p.add_argument("--checkpoint", default=None, help="override the BC checkpoint for C_vision_bc")
     p.add_argument("--out-dir", default="outputs/benchmark")
     p.add_argument("--log-level", default="WARNING")
+    p.add_argument(
+        "--resummarize",
+        action="store_true",
+        help="recompute summaries in --out-dir from its episode logs without simulating",
+    )
     args = p.parse_args()
 
     from robotics.common.logging_utils import setup_logging
@@ -44,6 +49,14 @@ def main() -> int:
         run_benchmark,
     )
 
+    if args.resummarize:
+        from robotics.evaluation.runner import resummarize
+
+        for name, s in resummarize(args.out_dir).items():
+            print(
+                f"{name}: success {s['task_success_rate']:.2f}, skill-verified placement {s['skill_verified_placement_rate']:.2f}"
+            )
+        return 0
     configs = []
     for name in args.configs:
         if name not in STANDARD_CONFIGS:

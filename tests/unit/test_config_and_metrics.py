@@ -32,7 +32,7 @@ def _report(seed, placed: dict, recoveries=0, collisions=0, success=None):
     outcomes = [
         StepOutcome(o, f"{o}_bin", success=ok, attempts=1 + recoveries, recovery_attempts=recoveries,
                     manipulation_actions=1 + recoveries, pick_successes=1 if ok else 0,
-                    failures=[] if ok else ["grasp_empty"])
+                    failures=[] if ok else ["grasp_empty"], final_status="placed" if ok else "gave_up")
         for o, ok in placed.items()
     ]  # fmt: skip
     return EpisodeReport(
@@ -69,3 +69,17 @@ def test_summary_metrics():
 def test_summary_requires_episodes():
     with pytest.raises(ValueError):
         summarize("cfg", [])
+
+
+def test_skill_verified_excludes_safe_stop_placements():
+    r = _report(0, {"milk": True, "can": True})
+    r.outcomes[1].final_status = "gave_up:bc_timeout"  # landed in target only via the safe stop
+    s = summarize("cfg", [r])
+    assert s["placement_success_rate"] == 1.0
+    assert s["skill_verified_placement_rate"] == 0.5
+
+
+def test_episode_report_roundtrip():
+    r = _report(3, {"milk": True})
+    r2 = EpisodeReport.from_dict(r.to_dict())
+    assert r2.outcomes[0].object_name == "milk" and r2.seed == 3

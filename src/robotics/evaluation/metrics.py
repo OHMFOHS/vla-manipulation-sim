@@ -54,6 +54,7 @@ def summarize(config: str, reports: list[EpisodeReport]) -> dict:
     placed: dict[str, int] = defaultdict(int)
     requested: dict[str, int] = defaultdict(int)
     first_try: dict[str, int] = defaultdict(int)
+    skill_verified = 0
     failure_counts: dict[str, int] = defaultdict(int)
     for r in reports:
         per = r.ground_truth.get("per_object_in_target", {})
@@ -65,6 +66,9 @@ def summarize(config: str, reports: list[EpisodeReport]) -> dict:
             first_try[o.object_name] += int(
                 per.get(o.object_name, False) and o.recovery_attempts == 0
             )
+            # Placed by a skill execution that itself reported success and passed verification
+            # (excludes objects that only landed in the target when a safe stop opened the gripper).
+            skill_verified += int(per.get(o.object_name, False) and o.final_status == "placed")
             for f in o.failures:
                 failure_counts[f.split(":")[0]] += 1
 
@@ -94,6 +98,9 @@ def summarize(config: str, reports: list[EpisodeReport]) -> dict:
         if total_attempts
         else 0.0,
         "placement_success_rate": (sum(placed.values()) / total_requested)
+        if total_requested
+        else 0.0,
+        "skill_verified_placement_rate": (skill_verified / total_requested)
         if total_requested
         else 0.0,
         "avg_episode_sim_time_s": mean("sim_time_s"),

@@ -73,6 +73,13 @@ class EpisodeReport:
     def manipulation_actions(self) -> int:
         return sum(o.manipulation_actions for o in self.outcomes)
 
+    @classmethod
+    def from_dict(cls, d: dict) -> EpisodeReport:
+        """Rebuild a report from a JSONL record written by the benchmark runner."""
+        fields = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
+        fields["outcomes"] = [StepOutcome(**o) for o in d["outcomes"]]
+        return cls(**fields)
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d["recovery_attempts"] = self.recovery_attempts
