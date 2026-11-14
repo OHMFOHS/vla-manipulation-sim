@@ -51,6 +51,7 @@ class BCPickPlaceSkill:
         prev_cmd = -1.0
         held = False
         released = False
+        z_release = 0.0
         steps = 0
         phase = "bc_reach"
         while steps < self.timeout:
@@ -71,6 +72,7 @@ class BCPickPlaceSkill:
             near_goal = np.linalg.norm(env.eef_pos[:2] - place.position[:2]) < 0.06
             if held and cmd < 0 and not released:
                 released = True
+                z_release = float(env.eef_pos[2])
                 if not near_goal:
                     return SkillResult(
                         False,
@@ -89,9 +91,11 @@ class BCPickPlaceSkill:
             if reason:
                 stage = "place" if held else "pick"
                 return SkillResult(False, phase, reason, steps, {"stage": stage})
+            # Done once the hand has backed off upward after releasing, like the expert's retreat.
             if (
                 released
-                and env.eef_pos[2] > place.position[2] + self.cfg.place_release_height + 0.12
+                and env.eef_pos[2] > z_release + 0.035
+                and env.eef_pos[2] > self.cfg.retreat_height - 0.015
             ):
                 return SkillResult(True, "bc_release", None, steps, {"stage": "place"})
         stage = "place" if held else "pick"

@@ -13,3 +13,4 @@ demo_path: outputs/data/demos.npz
 checkpoint_dir: outputs/checkpoints
 collect_noise_std: 0.15        # DART-style noise on executed actions (labels stay clean)
 collect_noise_fraction: 0.5    # fraction of demo episodes with noise
+exclude_features: [eef_vx, eef_vy, eef_vz]   # velocity recorded but excluded (copycat effect, see EXPERIMENTS.md)

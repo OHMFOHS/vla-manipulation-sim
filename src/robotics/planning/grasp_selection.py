@@ -17,6 +17,7 @@ FINGER_REACH = (
 )
 
 
+MIN_CLEARANCE = 0.005  # m
 HAND_HALF_LENGTH = 0.105  # m, Panda hand housing half-length along the finger axis
 HAND_BOTTOM_ABOVE_TIP = 0.045  # m, hand housing bottom above the fingertip centre (grip site)
 
@@ -85,7 +86,13 @@ def choose_grasp_yaw(
         )
         for y in candidates
     ]
-    # prefer the smaller wrist rotation when clearances are equivalent (within 5 mm)
-    scored.sort(key=lambda t: (-round(t[0] / 0.005), abs(t[1])))
+    # Among collision-free candidates take the smallest wrist rotation: large yaws push the
+    # Panda's last joint toward its ±2.9 rad limit during far transports.  If no candidate is
+    # free, take the one with the most clearance.
+    feasible = [t for t in scored if t[0] > MIN_CLEARANCE]
+    if feasible:
+        scored = sorted(feasible, key=lambda t: abs(t[1]))
+    else:
+        scored.sort(key=lambda t: -t[0])
     clearance, yaw = scored[0]
     return yaw, clearance

@@ -48,9 +48,12 @@ class LoadedPolicy:
         self.model = model.eval()
         self.normalizer = normalizer
         self.meta = meta
+        self.feature_indices = meta.get("feature_indices")  # None = all features
 
     @torch.no_grad()
     def act(self, features: np.ndarray) -> tuple[np.ndarray, float]:
+        if self.feature_indices is not None:
+            features = features[self.feature_indices]
         x = torch.from_numpy(self.normalizer(features[None, :]))
         xyz, logit = self.model(x)
         return xyz[0].numpy().astype(np.float64), float(torch.sigmoid(logit[0]))
@@ -86,6 +89,7 @@ def load_policy(path: str | Path) -> LoadedPolicy:
         raise ValueError(
             f"checkpoint feature version {ckpt.get('feature_version')} != {FEATURE_VERSION}"
         )
-    model = MLPPolicy(OBS_DIM, ckpt["hidden"], ckpt.get("dropout", 0.0))
+    obs_dim = len(ckpt["normalizer"]["mean"])
+    model = MLPPolicy(obs_dim, ckpt["hidden"], ckpt.get("dropout", 0.0))
     model.load_state_dict(ckpt["state_dict"])
     return LoadedPolicy(model, Normalizer.from_dict(ckpt["normalizer"]), ckpt.get("meta", {}))

@@ -139,8 +139,10 @@ class ClosedLoopExecutor:
     # ------------------------------------------------------------------ helpers
     def _perceive(self) -> PerceptionResult:
         r = self.motion.go_to_pose(WORKSPACE.perception_pose, "to_perception_pose")
-        if not r.success and r.reason == "episode_timeout":
-            raise _EpisodeTimeout
+        if not r.success:
+            if r.reason == "episode_timeout":
+                raise _EpisodeTimeout
+            self._log("perception_pose_not_reached", reason=r.reason, eef=self.env.eef_pos.round(3))
         result = self.perception.perceive()
         self._log(
             "perceive",

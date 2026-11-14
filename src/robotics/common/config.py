@@ -46,6 +46,9 @@ class ControllerConfig(_Strict):
     grasp_depth: float = 0.025  # m below the object top where finger tips close
     lift_height: float = 1.04  # absolute z after lifting
     place_release_height: float = 0.035  # m above container floor to release object bottom
+    # Empty-handed clearance height after releasing / before navigating (fingertips clear the
+    # 0.90 m bin walls).  Rising higher above the far compartments fully stretches the arm.
+    retreat_height: float = 0.96
     gripper_close_steps: int = 14
     gripper_open_steps: int = 10
     segment_timeout_steps: int = 120
@@ -110,6 +113,10 @@ class TrainingConfig(_Strict):
     checkpoint_dir: str = "outputs/checkpoints"
     collect_noise_std: float = 0.15  # DART-style action noise during collection
     collect_noise_fraction: float = 0.5  # fraction of demo episodes with noise injection
+    # Feature columns dropped before training.  End-effector velocity is recorded but excluded
+    # by default: it nearly encodes the previous action, and the closed-loop benchmark showed
+    # the resulting "copycat" policy performs much worse (see docs/EXPERIMENTS.md).
+    exclude_features: list[str] = ["eef_vx", "eef_vy", "eef_vz"]
 
 
 T = TypeVar("T", bound=BaseModel)

@@ -261,8 +261,9 @@ class ScriptedPickPlaceController:
         if not r.success:
             return SkillResult(False, "release", r.reason, total)
         self.held_offset_z = None
+        retreat_z = max(c.retreat_height, release_z + 0.04)
         r = self.move_to(
-            np.array([*xy, transport_z]), "retreat", tolerance=0.02, max_speed=0.3, allow_stall=True
+            np.array([*xy, retreat_z]), "retreat", tolerance=0.02, max_speed=0.3, allow_stall=True
         )
         total += r.steps
         if not r.success:
@@ -283,9 +284,9 @@ class ScriptedPickPlaceController:
         """Move to a named pose, rising to the safe height first to avoid sweeping through bins."""
         total = 0
         xyz = np.asarray(xyz, dtype=np.float64)
-        if self.env.eef_pos[2] < self.ws.safe_height - 0.02:
+        if self.env.eef_pos[2] < self.cfg.retreat_height - 0.01:
             r = self.move_to(
-                np.array([*self.env.eef_pos[:2], self.ws.safe_height]),
+                np.array([*self.env.eef_pos[:2], self.cfg.retreat_height]),
                 f"{phase}_rise",
                 tolerance=0.02,
                 allow_stall=True,
@@ -303,7 +304,7 @@ class ScriptedPickPlaceController:
         r = self.actuate_gripper(GRIPPER_OPEN, self.cfg.gripper_open_steps, "safe_release")
         self.held_offset_z = None
         r2 = self.move_to(
-            np.array([*self.env.eef_pos[:2], self.ws.safe_height]),
+            np.array([*self.env.eef_pos[:2], max(self.cfg.retreat_height, self.env.eef_pos[2])]),
             "safe_retreat",
             tolerance=0.03,
             allow_stall=True,

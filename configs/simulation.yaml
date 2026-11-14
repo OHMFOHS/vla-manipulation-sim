@@ -25,6 +25,7 @@ controller:
   grasp_depth: 0.025
   lift_height: 1.04
   place_release_height: 0.035
+  retreat_height: 0.96         # empty-handed clearance height (higher stretches the arm over far bins)
   gripper_close_steps: 14
   gripper_open_steps: 10
   segment_timeout_steps: 120   # per motion segment

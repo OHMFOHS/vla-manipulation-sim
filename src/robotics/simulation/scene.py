@@ -183,6 +183,8 @@ class Workspace:
     safe_height: float = 1.03  # transport height: held objects clear the 0.90 m bin walls by >4 cm
     home: tuple[float, float, float] = (-0.10, -0.10, 1.10)
     # Arm pose used while taking pictures: retracted behind the bins so it does not occlude them.
+    # Higher poses were tried (e.g. (-0.08, -0.10, 1.25)): they start far-corner grasps from a
+    # greater height, which drives the elbow to full extension during the approach.
     perception_pose: tuple[float, float, float] = (-0.22, -0.10, 1.18)
     robot_base_xy: tuple[float, float] = (-0.50, -0.10)
     # Empirical horizontal reach of the Panda (from the base axis) at bin height with a

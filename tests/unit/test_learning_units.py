@@ -86,3 +86,15 @@ def test_checkpoint_roundtrip(tmp_path):
 def test_missing_checkpoint_has_helpful_error(tmp_path):
     with pytest.raises(FileNotFoundError, match="train_bc.py"):
         load_policy(tmp_path / "nope.pt")
+
+
+def test_policy_applies_feature_subset(tmp_path):
+    idx = [0, 1, 2, 9]
+    model = MLPPolicy(len(idx), [8])
+    norm = Normalizer(np.zeros(len(idx), np.float32), np.ones(len(idx), np.float32))
+    path = save_checkpoint(
+        tmp_path / "s.pt", model, norm, {"hidden_sizes": [8], "feature_indices": idx}
+    )
+    pol = load_policy(path)
+    xyz, p = pol.act(np.zeros(OBS_DIM, np.float32))  # full feature vector in, subset used
+    assert xyz.shape == (3,) and 0.0 <= p <= 1.0

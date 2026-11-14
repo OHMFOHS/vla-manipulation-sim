@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 
 from robotics.common.config import PROJECT_ROOT, TrainingConfig
 from robotics.learning.dataset import DemoDataset, Normalizer, load_demos, split_by_episode
+from robotics.learning.features import FEATURE_NAMES
 from robotics.learning.policy import MLPPolicy, save_checkpoint
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,11 @@ def train_bc(
     np.random.seed(cfg.seed)
     data = load_demos(cfg.demo_path)
     obs, act, episodes = data["observations"], data["actions"], data["episodes"]
+    unknown = set(cfg.exclude_features) - set(FEATURE_NAMES)
+    if unknown:
+        raise ValueError(f"exclude_features contains unknown names: {sorted(unknown)}")
+    feature_indices = [i for i, n in enumerate(FEATURE_NAMES) if n not in cfg.exclude_features]
+    obs = obs[:, feature_indices]
     if max_episodes is not None:
         keep_eps = np.unique(episodes)[:max_episodes]
         m = np.isin(episodes, keep_eps)
@@ -72,6 +78,8 @@ def train_bc(
         "val_samples": int(val_mask.sum()),
         "train_episodes": int(len(np.unique(episodes[train_mask]))),
         "val_episodes": int(len(np.unique(episodes[val_mask]))),
+        "feature_indices": feature_indices,
+        "feature_names": [FEATURE_NAMES[i] for i in feature_indices],
     }
     t0 = time.perf_counter()
     for epoch in range(1, cfg.epochs + 1):
