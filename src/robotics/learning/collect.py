@@ -265,7 +265,7 @@ def _run_with_skill(agent: ManipulationAgent, instruction: str, seed: int, make_
         agent.make_perception(),
         skill_inner,
         motion,
-        TaskPlanner(),
+        TaskPlanner(grasp_depth=agent.cfg.controller.grasp_depth),
         agent.cfg.recovery,
         None,
     )

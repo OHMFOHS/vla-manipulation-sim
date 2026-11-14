@@ -107,7 +107,7 @@ class ManipulationAgent:
             self.make_perception(),
             skill,
             motion,
-            TaskPlanner(),
+            TaskPlanner(grasp_depth=self.cfg.controller.grasp_depth),
             self.cfg.recovery,
             faults,
             extra_hooks=hooks,

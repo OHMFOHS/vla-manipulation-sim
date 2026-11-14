@@ -16,6 +16,12 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--seed", type=int, default=10000)
     p.add_argument("--out", default="assets/demo/perception.png")
+    p.add_argument(
+        "--accuracy-episodes",
+        type=int,
+        default=0,
+        help="also measure localisation error over N evaluation seeds (writes JSON)",
+    )
     args = p.parse_args()
 
     from robotics.common.logging_utils import setup_logging
@@ -60,6 +66,17 @@ def main() -> int:
             f"{name:8s} {np.array2string(det.position, precision=3):28s} {err:20.1f} {det.confidence:5.2f}"
         )
     print(f"missing: {vision.missing}\nwrote {out}")
+    if args.accuracy_episodes:
+        import json
+
+        from robotics.evaluation.perception_eval import evaluate_perception
+        from robotics.evaluation.runner import eval_seeds
+
+        acc = evaluate_perception(env, eval_seeds(args.accuracy_episodes))
+        path = ROOT / "outputs" / "perception_accuracy.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(acc, indent=2))
+        print(json.dumps(acc, indent=2))
     env.close()
     return 0
 

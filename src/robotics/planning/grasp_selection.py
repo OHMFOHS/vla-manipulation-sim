@@ -10,11 +10,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from robotics.simulation.scene import CONTAINERS
+from robotics.simulation.scene import BIN_WALL_TOP_Z, CONTAINERS
 
 FINGER_REACH = (
     0.05  # m from the grasp centre to a finger pad when the gripper is open (+ pad width)
 )
+
+
+HAND_HALF_LENGTH = 0.105  # m, Panda hand housing half-length along the finger axis
+HAND_BOTTOM_ABOVE_TIP = 0.045  # m, hand housing bottom above the fingertip centre (grip site)
 
 
 def _wrap_half_pi(yaw: float) -> float:
@@ -42,23 +46,43 @@ def finger_points(center_xy: np.ndarray, yaw: float, reach: float = FINGER_REACH
 
 
 def grasp_clearance(
-    center_xy: np.ndarray, yaw: float, obstacles_xy: list[np.ndarray], obstacle_radius: float = 0.03
+    center_xy: np.ndarray,
+    yaw: float,
+    obstacles_xy: list[np.ndarray],
+    obstacle_radius: float = 0.03,
+    grasp_z: float | None = None,
 ) -> float:
+    """Smallest clearance of the open fingers (and, for low grasps, the hand housing).
+
+    The Panda hand housing is ~21 cm long along the finger axis and sits ~4.5 cm above the
+    fingertips.  When that is below the bin wall tops, its ends must clear the walls too.
+    """
+    center_xy = np.asarray(center_xy, float)
     clear = np.inf
-    for f in finger_points(np.asarray(center_xy, float), yaw):
+    for f in finger_points(center_xy, yaw):
         clear = min(clear, _wall_clearance(f))
         for o in obstacles_xy:
             clear = min(clear, float(np.linalg.norm(f - np.asarray(o)[:2])) - obstacle_radius)
+    if grasp_z is not None and grasp_z + HAND_BOTTOM_ABOVE_TIP < BIN_WALL_TOP_Z + 0.015:
+        for h in finger_points(center_xy, yaw, HAND_HALF_LENGTH):
+            clear = min(clear, _wall_clearance(h))
     return float(clear)
 
 
 def choose_grasp_yaw(
-    center_xy: np.ndarray, base_yaw: float, elongated: bool, obstacles_xy: list[np.ndarray]
+    center_xy: np.ndarray,
+    base_yaw: float,
+    elongated: bool,
+    obstacles_xy: list[np.ndarray],
+    grasp_z: float | None = None,
 ) -> tuple[float, float]:
     """Return ``(yaw, clearance)``.  Elongated footprints keep their single valid yaw."""
     candidates = [base_yaw] if elongated else [base_yaw, base_yaw + np.pi / 2]
     scored = [
-        (grasp_clearance(center_xy, _wrap_half_pi(y), obstacles_xy), _wrap_half_pi(y))
+        (
+            grasp_clearance(center_xy, _wrap_half_pi(y), obstacles_xy, grasp_z=grasp_z),
+            _wrap_half_pi(y),
+        )
         for y in candidates
     ]
     # prefer the smaller wrist rotation when clearances are equivalent (within 5 mm)

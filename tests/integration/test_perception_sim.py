@@ -37,3 +37,12 @@ def test_vision_backend_only_uses_sensor_frames(sim_env):
     r2 = VisionPerception().detect(frame)
     for n in r1.detections:
         assert np.allclose(r1.get(n).position, r2.get(n).position)
+
+
+def test_perception_accuracy_report(sim_env):
+    from robotics.evaluation.perception_eval import evaluate_perception
+
+    acc = evaluate_perception(sim_env, [10_000, 10_001])
+    assert acc["frames"] == 2 and acc["detection_rate"] == 1.0
+    assert acc["position_error_mm"]["max"] < 10.0
+    assert set(acc["per_object_mean_error_mm"]) == {"milk", "bread", "cereal", "can"}

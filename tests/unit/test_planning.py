@@ -97,3 +97,17 @@ def test_place_point_avoids_occupied_spots():
     first = select_place_point(c)
     second = select_place_point(c, occupied=[first])
     assert np.linalg.norm(second[:2] - first[:2]) >= 0.06 - 1e-9
+
+
+def test_grasp_yaw_keeps_hand_away_from_wall():
+    from robotics.planning.grasp_selection import choose_grasp_yaw, finger_points
+
+    # Object 10 cm from the source bin's far (+x) wall, in the middle along y.
+    center = np.array([0.19, -0.25])
+    yaw, clearance = choose_grasp_yaw(center, 0.0, elongated=False, obstacles_xy=[], grasp_z=0.86)
+    hand_ends = finger_points(center, yaw, 0.105)
+    assert np.all(hand_ends[:, 0] < 0.29)  # hand housing stays inside the far wall
+    assert clearance > 0
+    # A high grasp (hand above the wall tops) does not constrain the yaw.
+    yaw_high, _ = choose_grasp_yaw(center, 0.0, elongated=False, obstacles_xy=[], grasp_z=0.95)
+    assert abs(yaw_high) < 1e-9

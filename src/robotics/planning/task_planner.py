@@ -60,9 +60,15 @@ class ManipulationTask:
 
 
 class TaskPlanner:
-    def __init__(self, workspace: Workspace = WORKSPACE, min_confidence: float = 0.3):
+    def __init__(
+        self,
+        workspace: Workspace = WORKSPACE,
+        min_confidence: float = 0.3,
+        grasp_depth: float = 0.025,
+    ):
         self.ws = workspace
         self.min_confidence = min_confidence
+        self.grasp_depth = grasp_depth  # must match ControllerConfig.grasp_depth
 
     def plan(self, plan: TaskPlan, perception: PerceptionResult) -> list[ManipulationTask]:
         """Plan all steps against one perception snapshot (used for previews / dry runs)."""
@@ -146,7 +152,10 @@ class TaskPlanner:
             )
         others = [d.position for n, d in perception.detections.items() if n != name]
         elongated = "elongated_footprint" in det.flags or "toppled" in det.flags
-        yaw, clearance = choose_grasp_yaw(det.position[:2], float(det.yaw), elongated, others)
+        grasp_z = float(det.top_z) - self.grasp_depth
+        yaw, clearance = choose_grasp_yaw(
+            det.position[:2], float(det.yaw), elongated, others, grasp_z
+        )
         grasp = GraspTarget(name, det.position.copy(), float(det.top_z), yaw)
         place = PlaceTarget(container.name, place_xyz)
         actions += [
